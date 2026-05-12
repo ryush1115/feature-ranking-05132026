@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teleskope | Kohl's Feature Ranker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e10;
+    --surface: #17171a;
+    --surface2: #1f1f24;
+    --border: rgba(255,255,255,0.08);
+    --border-hover: rgba(109,77,255,0.5);
+    --text: #f0f0f2;
+    --muted: #888894;
+    --subtle: #444450;
+    --purple: #6d4dff;
+    --purple-light: #b8a8ff;
+    --purple-dim: rgba(109,77,255,0.12);
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  .shell { width: 100%; max-width: 640px; }
+
+  .wordmark {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 2.5rem;
+    text-align: center;
+  }
+
+  /* NAME SCREEN */
+  #nameScreen { text-align: center; }
+  .headline { font-size: 26px; font-weight: 300; color: var(--text); line-height: 1.3; margin-bottom: 0.5rem; }
+  .sub { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 2rem; }
+
+  .name-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 16px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    outline: none;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s;
+  }
+  .name-input:focus { border-color: var(--purple); }
+  .name-input::placeholder { color: var(--subtle); }
+
+  .btn-primary {
+    width: 100%;
+    background: var(--purple);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px;
+    font-size: 15px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-primary:active { transform: scale(0.98); }
+
+  /* GAME SCREEN */
+  #gameScreen { display: none; }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.75rem;
+  }
+
+  .participant-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--purple-light);
+    background: var(--purple-dim);
+    padding: 5px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.05em;
+  }
+
+  .leaderboard-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .leaderboard-btn:hover { border-color: var(--purple); color: var(--purple-light); }
+
+  .progress-track { height: 2px; background: var(--surface2); border-radius: 2px; margin-bottom: 0.6rem; }
+  .progress-fill { height: 2px; background: var(--purple); border-radius: 2px; transition: width 0.4s ease; width: 0%; }
+  .progress-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--subtle);
+    margin-bottom: 1.5rem;
+    letter-spacing: 0.04em;
+  }
+
+  .vs-wrap {
+    display: grid;
+    grid-template-columns: 1fr 36px 1fr;
+    gap: 10px;
+    align-items: stretch;
+    margin-bottom: 1rem;
+  }
+
+  .choice-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem 1.1rem;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s, background 0.2s, transform 0.1s;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+  .choice-btn:hover { border-color: var(--border-hover); background: var(--surface2); }
+  .choice-btn:active { transform: scale(0.98); }
+  .choice-btn.selected-winner { border-color: var(--purple); background: var(--purple-dim); }
+  .choice-btn.selected-loser { opacity: 0.3; }
+
+  .choice-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--subtle);
+    text-transform: uppercase;
+  }
+
+  .choice-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.35;
+  }
+
+  .choice-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  .vs-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .vs-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--subtle);
+    flex-shrink: 0;
+  }
+
+  .action-row { display: flex; gap: 8px; margin-top: 0.5rem; }
+
+  .btn-back, .btn-skip {
+    flex: 1;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .btn-back:hover, .btn-skip:hover { border-color: var(--subtle); color: var(--text); }
+  .btn-back:disabled { opacity: 0.3; cursor: default; }
+
+  /* RESULTS SCREEN */
+  #resultsScreen { display: none; }
+
+  .results-header { text-align: center; margin-bottom: 2rem; }
+  .results-headline { font-size: 22px; font-weight: 300; margin-bottom: 0.4rem; }
+  .results-sub { font-size: 13px; color: var(--muted); }
+
+  .result-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .result-rank { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--subtle); min-width: 22px; text-align: right; }
+  .result-name { font-size: 13px; color: var(--text); flex: 1; line-height: 1.35; }
+  .result-wins { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); min-width: 28px; text-align: right; }
+  .win-bar-wrap { width: 60px; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+  .win-bar-fill { height: 4px; background: var(--purple); border-radius: 2px; }
+  .tier-divider {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--subtle);
+    padding: 1.25rem 0 0.25rem;
+  }
+  .result-row.deprio .result-name { color: var(--muted); }
+
+  .done-actions { display: flex; gap: 8px; margin-top: 1.5rem; }
+  .btn-secondary {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    padding: 11px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--subtle); color: var(--text); }
+
+  /* LEADERBOARD OVERLAY */
+  #lbOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+  #lbOverlay.open { display: flex; }
+
+  .lb-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.75rem;
+    width: 100%;
+    max-width: 520px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .lb-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+  .lb-title { font-size: 16px; font-weight: 500; }
+  .lb-close { background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1; padding: 2px 6px; }
+  .lb-close:hover { color: var(--text); }
+  .lb-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .lb-rank { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--subtle); min-width: 20px; }
+  .lb-name { font-size: 13px; color: var(--text); flex: 1; line-height: 1.35; }
+  .lb-score { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--purple-light); }
+  .lb-participants { font-size: 12px; color: var(--muted); margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+  .lb-loading { font-size: 13px; color: var(--muted); text-align: center; padding: 2rem 0; font-family: 'DM Mono', monospace; }
+
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    padding: 10px 18px;
+    border-radius: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 200;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="wordmark">teleskope &nbsp;/&nbsp; feature ranker</div>
+
+  <!-- NAME SCREEN -->
+  <div id="nameScreen">
+    <div class="headline">What matters most to you?</div>
+    <p class="sub">You'll see two features at a time. Pick the one that would deliver more value to Kohl's. Your choices build a ranked list that helps us understand your priorities.</p>
+    <input class="name-input" id="nameInput" type="text" placeholder="Your name" maxlength="40" />
+    <button class="btn-primary" onclick="startGame()">Start ranking</button>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="gameScreen">
+    <div class="top-bar">
+      <div class="participant-tag" id="participantTag"></div>
+      <button class="leaderboard-btn" onclick="openLeaderboard()">Live results</button>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel">0 of 50</div>
+    <div class="vs-wrap">
+      <button class="choice-btn" id="btnA" onclick="vote(0)">
+        <div class="choice-label">Option A</div>
+        <div class="choice-title" id="titleA"></div>
+        <div class="choice-desc" id="descA"></div>
+      </button>
+      <div class="vs-col"><div class="vs-circle">vs</div></div>
+      <button class="choice-btn" id="btnB" onclick="vote(1)">
+        <div class="choice-label">Option B</div>
+        <div class="choice-title" id="titleB"></div>
+        <div class="choice-desc" id="descB"></div>
+      </button>
+    </div>
+    <div class="action-row">
+      <button class="btn-back" id="backBtn" onclick="goBack()" disabled>Back</button>
+      <button class="btn-skip" onclick="skip()">Skip</button>
+    </div>
+  </div>
+
+  <!-- RESULTS SCREEN -->
+  <div id="resultsScreen">
+    <div class="results-header">
+      <div class="results-headline">Your ranking</div>
+      <div class="results-sub" id="resultsSub"></div>
+    </div>
+    <div id="resultsList"></div>
+    <div class="done-actions">
+      <button class="btn-secondary" onclick="openLeaderboard()">Live results</button>
+      <button class="btn-secondary" onclick="restart()">Start over</button>
+    </div>
+  </div>
+</div>
+
+<!-- LEADERBOARD OVERLAY -->
+<div id="lbOverlay">
+  <div class="lb-panel">
+    <div class="lb-header">
+      <div class="lb-title">Live results</div>
+      <button class="lb-close" onclick="closeLeaderboard()">&#215;</button>
+    </div>
+    <div id="lbContent"><div class="lb-loading">Loading...</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://lyatyuylswnzmdupsshb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5YXR5dXlsc3duem1kdXBzc2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTE4MTMsImV4cCI6MjA5NDE4NzgxM30.ZNS0xUR9YZprOIoQ7cfr-O-UJ-6-3bdOE2GCy6PmwlI';
+const MAX_MATCHUPS = 50;
+
+const FEATURES = [
+  {
+    title: 'Self-service groups',
+    desc: "Create and manage any type of group directly in the UI — trusted external domains, internal team groupings, custom classifications — without needing engineering."
+  },
+  {
+    title: 'ServiceNow domain allow-list sync',
+    desc: "Use ServiceNow as the source of truth for approved external domains. Automatically pull in approved domains with expiration dates so the allow-list stays current without manual upkeep."
+  },
+  {
+    title: 'False positive reporting in Data Catalog',
+    desc: "Let users flag findings as false positives directly from the Data Catalog. Feeds back into classification tuning over time."
+  },
+  {
+    title: 'Slack tombstoning performance report',
+    desc: "A report showing how long it takes from a policy violation being detected to the Slack message being tombstoned. Useful for SLA tracking and audit evidence."
+  },
+  {
+    title: 'JIRA connector',
+    desc: "Scan JIRA tickets and attachments for sensitive data — PII, credentials, internal classifications. Surface findings and trigger remediation actions."
+  },
+  {
+    title: 'Confluence connector',
+    desc: "Scan Confluence pages, spaces, and attachments for sensitive data. Applies the same policy engine used across other sources."
+  },
+  {
+    title: "Kohl's managed Desktops (InTune / MECM)",
+    desc: "Scan and classify sensitive data on Kohl's Windows endpoints managed via InTune or MECM. Extends coverage beyond cloud and SaaS to the endpoint layer."
+  },
+  {
+    title: "Kohl's managed Macs (Jamf)",
+    desc: "Scan and classify sensitive data on Mac endpoints managed through Jamf. Covers files on device, not just cloud-synced copies."
+  },
+  {
+    title: "Kohl's managed Amazon Workspaces VDIs",
+    desc: "Scan virtual desktops running in Amazon Workspaces. Catches data that lives in VDI sessions and never touches a physical endpoint."
+  },
+  {
+    title: 'Miro connector',
+    desc: "Scan Miro boards for sensitive content — PII in sticky notes, embedded images, attachments. Often overlooked as a data risk surface."
+  },
+  {
+    title: 'Docusign connector',
+    desc: "Scan completed envelopes and documents in Docusign for sensitive data. Useful for contracts containing SSNs, financial data, or health information."
+  },
+  {
+    title: 'ServiceNow connector',
+    desc: "Scan ServiceNow tickets, attachments, and records for sensitive data. Separate from the domain allow-list sync — this is about data discovery within the platform."
+  },
+  {
+    title: 'GitLab connector',
+    desc: "Scan GitLab repos, issues, and merge requests for secrets, credentials, PII, or proprietary data. Covers both code and collaboration content."
+  },
+  {
+    title: 'Temporary access button in Data Catalog',
+    desc: "Grant time-limited access to a sensitive file or resource directly from the Data Catalog UI. Access auto-expires without manual revocation."
+  },
+  {
+    title: 'Temporary access button in Data Explorer',
+    desc: "Same temporary access grant flow, surfaced in Data Explorer. Lets investigators grant access without leaving their current context."
+  },
+  {
+    title: 'Access control toggle via RBAC',
+    desc: "Control who can see file previews and who can request temporary access to restricted resources, based on role. Prevents unauthorized visibility into sensitive content without fully blocking access workflows."
+  },
+  {
+    title: 'Scheduled reports',
+    desc: "Set up recurring reports (daily, weekly, monthly) on findings, policy hits, or data inventory. Delivered by email or to a dashboard."
+  },
+  {
+    title: 'Filter persistence fix',
+    desc: "Filters set in the UI (Data Catalog, Findings, etc.) currently reset on navigation. This fix makes them persist across the session so users don't have to re-apply them every time."
+  }
+];
+
+let sbClient;
+let participant = '';
+let matchups = [];
+let currentIdx = 0;
+let scores = {};
+let history = [];
+
+function initSupabase() {
+  sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
+function seededRand(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 0xffffffff;
+  };
+}
+
+function nameToSeed(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = Math.imul(31, h) + name.charCodeAt(i) | 0;
+  }
+  return Math.abs(h);
+}
+
+function generateMatchups(items, seed) {
+  const rand = seededRand(seed);
+  const pairs = [];
+  for (let i = 0; i < items.length; i++) {
+    for (let j = i + 1; j < items.length; j++) {
+      pairs.push([i, j]);
+    }
+  }
+  for (let i = pairs.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
+  }
+  return pairs.slice(0, MAX_MATCHUPS);
+}
+
+function startGame() {
+  const val = document.getElementById('nameInput').value.trim();
+  if (!val) { showToast('Enter your name to begin'); return; }
+  participant = val;
+  FEATURES.forEach((f, i) => scores[i] = 0);
+  matchups = generateMatchups(FEATURES, nameToSeed(participant));
+  currentIdx = 0;
+  history = [];
+  document.getElementById('participantTag').textContent = participant;
+  document.getElementById('nameScreen').style.display = 'none';
+  document.getElementById('gameScreen').style.display = 'block';
+  renderMatchup();
+}
+
+function renderMatchup() {
+  if (currentIdx >= matchups.length) { showResults(); return; }
+  const [ai, bi] = matchups[currentIdx];
+  const a = FEATURES[ai];
+  const b = FEATURES[bi];
+  document.getElementById('titleA').textContent = a.title;
+  document.getElementById('descA').textContent = a.desc;
+  document.getElementById('titleB').textContent = b.title;
+  document.getElementById('descB').textContent = b.desc;
+  document.getElementById('btnA').className = 'choice-btn';
+  document.getElementById('btnB').className = 'choice-btn';
+  const pct = Math.round((currentIdx / matchups.length) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = currentIdx + ' of ' + matchups.length;
+  document.getElementById('backBtn').disabled = history.length === 0;
+}
+
+async function vote(pick) {
+  const [ai, bi] = matchups[currentIdx];
+  const winnerIdx = pick === 0 ? ai : bi;
+  const loserIdx = pick === 0 ? bi : ai;
+  const winner = FEATURES[winnerIdx].title;
+  const loser = FEATURES[loserIdx].title;
+
+  document.getElementById(pick === 0 ? 'btnA' : 'btnB').className = 'choice-btn selected-winner';
+  document.getElementById(pick === 0 ? 'btnB' : 'btnA').className = 'choice-btn selected-loser';
+
+  scores[winnerIdx] = (scores[winnerIdx] || 0) + 1;
+  history.push({ winnerIdx, loserIdx, winner, loser, pick, idx: currentIdx });
+
+  try {
+    await sbClient.from('picks').insert({ participant, winner, loser });
+  } catch(e) {}
+
+  setTimeout(() => { currentIdx++; renderMatchup(); }, 300);
+}
+
+function skip() {
+  history.push({ skipped: true, idx: currentIdx });
+  currentIdx++;
+  renderMatchup();
+}
+
+async function goBack() {
+  if (history.length === 0) return;
+  const last = history.pop();
+  currentIdx = last.idx;
+  if (!last.skipped) {
+    scores[last.winnerIdx] = Math.max(0, (scores[last.winnerIdx] || 0) - 1);
+    try {
+      await sbClient.from('picks')
+        .delete()
+        .eq('participant', participant)
+        .eq('winner', last.winner)
+        .eq('loser', last.loser);
+    } catch(e) {}
+  }
+  renderMatchup();
+}
+
+function showResults() {
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('resultsScreen').style.display = 'block';
+
+  const sorted = Object.entries(scores)
+    .map(([idx, wins]) => ({ idx: parseInt(idx), wins, title: FEATURES[parseInt(idx)].title }))
+    .sort((a, b) => b.wins - a.wins);
+
+  const maxWins = sorted[0]?.wins || 1;
+  const topCutoff = Math.ceil(sorted.length * 0.4);
+  const deprioCutoff = Math.floor(sorted.length * 0.75);
+
+  document.getElementById('resultsSub').textContent = participant + ' — ' + matchups.length + ' matchups completed';
+
+  let html = '<div class="tier-divider">High priority</div>';
+  sorted.forEach((item, i) => {
+    const pct = Math.round((item.wins / maxWins) * 100);
+    if (i === topCutoff) html += '<div class="tier-divider">Lower priority</div>';
+    if (i === deprioCutoff) html += '<div class="tier-divider">Deprioritize</div>';
+    const cls = i >= deprioCutoff ? 'result-row deprio' : 'result-row';
+    html += `<div class="${cls}">
+      <div class="result-rank">${i + 1}</div>
+      <div class="result-name">${item.title}</div>
+      <div class="win-bar-wrap"><div class="win-bar-fill" style="width:${pct}%"></div></div>
+      <div class="result-wins">${item.wins}w</div>
+    </div>`;
+  });
+
+  document.getElementById('resultsList').innerHTML = html;
+}
+
+function restart() {
+  scores = {};
+  FEATURES.forEach((f, i) => scores[i] = 0);
+  matchups = generateMatchups(FEATURES, nameToSeed(participant));
+  currentIdx = 0;
+  history = [];
+  document.getElementById('resultsScreen').style.display = 'none';
+  document.getElementById('gameScreen').style.display = 'block';
+  renderMatchup();
+}
+
+async function openLeaderboard() {
+  document.getElementById('lbOverlay').classList.add('open');
+  document.getElementById('lbContent').innerHTML = '<div class="lb-loading">Loading...</div>';
+  await refreshLeaderboard();
+}
+
+function closeLeaderboard() {
+  document.getElementById('lbOverlay').classList.remove('open');
+}
+
+async function refreshLeaderboard() {
+  try {
+    const { data, error } = await sbClient.from('picks').select('winner, loser, participant');
+    if (error) throw error;
+
+    const winCounts = {};
+    const participants = new Set();
+    FEATURES.forEach(f => winCounts[f.title] = 0);
+
+    data.forEach(row => {
+      participants.add(row.participant);
+      if (winCounts.hasOwnProperty(row.winner)) winCounts[row.winner]++;
+    });
+
+    const sorted = Object.entries(winCounts).sort((a, b) => b[1] - a[1]);
+    const maxW = sorted[0]?.[1] || 1;
+
+    let html = '';
+    sorted.forEach(([name, wins], i) => {
+      const pct = Math.round((wins / maxW) * 100);
+      html += `<div class="lb-row">
+        <div class="lb-rank">${i + 1}</div>
+        <div class="lb-name">${name}</div>
+        <div class="lb-score">${wins} wins</div>
+      </div>`;
+    });
+
+    const pList = Array.from(participants).join(', ');
+    html += `<div class="lb-participants">Participants: ${pList || 'none yet'}</div>`;
+    document.getElementById('lbContent').innerHTML = html;
+  } catch(e) {
+    document.getElementById('lbContent').innerHTML = '<div class="lb-loading">Could not load results.</div>';
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+document.getElementById('nameInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') startGame();
+});
+
+document.getElementById('lbOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('lbOverlay')) closeLeaderboard();
+});
+
+initSupabase();
+</script>
+</body>
+</html>
