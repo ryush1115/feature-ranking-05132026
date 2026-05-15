@@ -323,7 +323,7 @@
     <div class="headline">What matters most to you?</div>
     <p class="sub">You'll see two features at a time. Pick the one that would deliver more value to Kohl's. Your choices build a ranked list that helps us understand your priorities.</p>
     <input class="name-input" id="nameInput" type="text" placeholder="Your name" maxlength="40" />
-    <button class="btn-primary" onclick="startGame()">Start ranking</button>
+    <button class="btn-primary" id="startBtn" onclick="startGame()">Start ranking</button>
   </div>
 
   <!-- GAME SCREEN -->
@@ -385,76 +385,7 @@ const SUPABASE_URL = 'https://lyatyuylswnzmdupsshb.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5YXR5dXlsc3duem1kdXBzc2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2MTE4MTMsImV4cCI6MjA5NDE4NzgxM30.ZNS0xUR9YZprOIoQ7cfr-O-UJ-6-3bdOE2GCy6PmwlI';
 const MAX_MATCHUPS = 50;
 
-const FEATURES = [
-  {
-    title: 'Self-service groups',
-    desc: "Create and manage any type of group directly in the UI — trusted external domains, internal team groupings, custom classifications — without needing engineering."
-  },
-  {
-    title: 'ServiceNow domain allow-list sync',
-    desc: "Use ServiceNow as the source of truth for approved external domains. Automatically pull in approved domains with expiration dates so the allow-list stays current without manual upkeep."
-  },
-  {
-    title: 'False positive reporting in Data Catalog',
-    desc: "Let users flag findings as false positives directly from the Data Catalog. Feeds back into classification tuning over time."
-  },
-  {
-    title: 'Slack tombstoning performance report',
-    desc: "A report showing how long it takes from a policy violation being detected to the Slack message being tombstoned. Useful for SLA tracking and audit evidence."
-  },
-  {
-    title: 'JIRA connector',
-    desc: "Scan JIRA tickets and attachments for sensitive data — PII, credentials, internal classifications. Surface findings and trigger remediation actions."
-  },
-  {
-    title: 'Confluence connector',
-    desc: "Scan Confluence pages, spaces, and attachments for sensitive data. Applies the same policy engine used across other sources."
-  },
-  {
-    title: "Kohl's managed Desktops (InTune / MECM)",
-    desc: "Scan and classify sensitive data on Kohl's Windows endpoints managed via InTune or MECM. Extends coverage beyond cloud and SaaS to the endpoint layer."
-  },
-  {
-    title: "Kohl's managed Macs (Jamf)",
-    desc: "Scan and classify sensitive data on Mac endpoints managed through Jamf. Covers files on device, not just cloud-synced copies."
-  },
-  {
-    title: "Kohl's managed Amazon Workspaces VDIs",
-    desc: "Scan virtual desktops running in Amazon Workspaces. Catches data that lives in VDI sessions and never touches a physical endpoint."
-  },
-  {
-    title: 'Miro connector',
-    desc: "Scan Miro boards for sensitive content — PII in sticky notes, embedded images, attachments. Often overlooked as a data risk surface."
-  },
-  {
-    title: 'Docusign connector',
-    desc: "Scan completed envelopes and documents in Docusign for sensitive data. Useful for contracts containing SSNs, financial data, or health information."
-  },
-  {
-    title: 'ServiceNow connector',
-    desc: "Scan ServiceNow tickets, attachments, and records for sensitive data. Separate from the domain allow-list sync — this is about data discovery within the platform."
-  },
-  {
-    title: 'GitLab connector',
-    desc: "Scan GitLab repos, issues, and merge requests for secrets, credentials, PII, or proprietary data. Covers both code and collaboration content."
-  },
-  {
-    title: 'Temporary access button in Data Catalog',
-    desc: "Grant time-limited access to a sensitive file or resource directly from the Data Catalog UI. Access auto-expires without manual revocation."
-  },
-  {
-    title: 'Temporary access button in Data Explorer',
-    desc: "Same temporary access grant flow, surfaced in Data Explorer. Lets investigators grant access without leaving their current context."
-  },
-  {
-    title: 'Access control toggle via RBAC',
-    desc: "Control who can see file previews and who can request temporary access to restricted resources, based on role. Prevents unauthorized visibility into sensitive content without fully blocking access workflows."
-  },
-  {
-    title: 'Revocation scope clarity (Drive, folder, or resource level)',
-    desc: "When revoking access, it's not always clear whether the action applies to the entire connected Drive, an inherited folder, or just the specific file or resource. This feature makes the scope of revocation explicit in the UI so users know exactly what access they're removing before they act."
-  }
-];
+let FEATURES = [];
 
 let sbClient;
 let participant = '';
@@ -465,6 +396,16 @@ let history = [];
 
 function initSupabase() {
   sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
+async function loadFeatures() {
+  const { data, error } = await sbClient
+    .from('features')
+    .select('title, description')
+    .eq('active', true)
+    .order('position', { ascending: true });
+  if (error) throw error;
+  return data.map(f => ({ title: f.title, desc: f.description }));
 }
 
 function seededRand(seed) {
@@ -498,10 +439,24 @@ function generateMatchups(items, seed) {
   return pairs.slice(0, MAX_MATCHUPS);
 }
 
-function startGame() {
+async function startGame() {
   const val = document.getElementById('nameInput').value.trim();
   if (!val) { showToast('Enter your name to begin'); return; }
   participant = val;
+
+  const btn = document.getElementById('startBtn');
+  btn.textContent = 'Loading...';
+  btn.disabled = true;
+
+  try {
+    FEATURES = await loadFeatures();
+  } catch(e) {
+    showToast('Could not load features. Check your connection.');
+    btn.textContent = 'Start ranking';
+    btn.disabled = false;
+    return;
+  }
+
   FEATURES.forEach((f, i) => scores[i] = 0);
   matchups = generateMatchups(FEATURES, nameToSeed(participant));
   currentIdx = 0;
@@ -603,8 +558,9 @@ function showResults() {
   document.getElementById('resultsList').innerHTML = html;
 }
 
-function restart() {
+async function restart() {
   scores = {};
+  try { FEATURES = await loadFeatures(); } catch(e) {}
   FEATURES.forEach((f, i) => scores[i] = 0);
   matchups = generateMatchups(FEATURES, nameToSeed(participant));
   currentIdx = 0;
